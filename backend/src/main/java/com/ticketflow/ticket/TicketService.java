@@ -6,7 +6,6 @@ import org.springframework.stereotype.Service;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
-import java.util.UUID;
 import java.util.function.Supplier;
 
 @Service
@@ -53,5 +52,23 @@ public class TicketService {
                 saved.getUpdatedAt(),
                 saved.getVersion()
         );
+    }
+
+    public List<TicketSummaryResponse> listTickets() {
+        return ticketRepository
+                .findAllByOrderByCreatedAtDescIdAsc()
+                .stream()
+                .map(ticket -> new TicketSummaryResponse(
+                        ticket.getId(),
+                        ticket.getTitle(),
+                        ticket.getRequesterName(),
+                        ticket.getStatus(),
+                        ticket.getPriority(),
+                        null,
+                        ticket.getCreatedAt(),
+                        ticket.getUpdatedAt(),
+                        ticket.getVersion()
+                ))
+                .toList();
     }
 }

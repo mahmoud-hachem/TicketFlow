@@ -1,5 +1,5 @@
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import './App.css'
 
 const initialForm = {
@@ -15,6 +15,46 @@ function App() {
   const [error, setError] = useState('')
   const [fieldErrors, setFieldErrors] = useState({})
   const [createdTicket, setCreatedTicket] = useState(null)
+
+  const [tickets, setTickets] = useState([])
+  const [listLoading, setListLoading] = useState(true)
+  const [listError, setListError] = useState('')
+  const [refreshKey, setRefreshKey] = useState(0)
+
+  useEffect(() => {
+    const controller = new AbortController()
+
+    async function loadTickets() {
+      setListLoading(true)
+      setListError('')
+
+      try {
+        const response = await fetch('/api/tickets', {
+          signal: controller.signal
+        })
+
+        if (!response.ok) {
+          throw new Error('Unable to load tickets.')
+        }
+
+        const data = await response.json()
+        setTickets(data)
+
+      } catch (err) {
+        if (!controller.signal.aborted) {
+          setListError(err.message)
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setListLoading(false)
+        }
+      }
+    }
+
+    loadTickets()
+
+    return () => controller.abort()
+  }, [refreshKey])
 
   function handleChange(event) {
     const { name, value } = event.target
@@ -60,6 +100,7 @@ function App() {
 
       setCreatedTicket(data)
       setForm(initialForm)
+      setRefreshKey(previous => previous + 1)
 
     } catch (err) {
       setError(err.message)
@@ -164,6 +205,61 @@ function App() {
               {loading ? 'Creating ticket...' : 'Create Ticket'}
             </button>
           </form>
+        </section>
+
+        <section className="ticket-card ticket-list">
+          <h2>All Support Tickets</h2>
+          <p>View and track submitted support tickets.</p>
+
+          <button
+            type="button"
+            onClick={() => setRefreshKey(previous => previous + 1)}
+            disabled={listLoading}
+          >
+            Refresh Tickets
+          </button>
+
+          {listLoading && (
+            <p role="status">Loading tickets...</p>
+          )}
+
+          {listError && (
+            <div className="error-message" role="alert">
+              {listError}
+            </div>
+          )}
+
+          {!listLoading && !listError && tickets.length === 0 && (
+            <p>No tickets yet. Create your first support ticket.</p>
+          )}
+
+          {!listLoading && !listError && tickets.map(ticket => (
+            <article className="ticket-item" key={ticket.id}>
+              <h3>{ticket.title}</h3>
+
+              <div className="ticket-badges">
+                <span className="ticket-badge">
+                  {ticket.status}
+                </span>
+
+                <span className={`ticket-badge priority-${ticket.priority.toLowerCase()}`}>
+                  {ticket.priority}
+                </span>
+              </div>
+
+              <p><strong>Requester:</strong> {ticket.requesterName}</p>
+
+              <p>
+                <strong>Assigned agent:</strong>{' '}
+                {ticket.assignedAgent?.name || 'Unassigned'}
+              </p>
+
+              <p>
+                <strong>Created:</strong>{' '}
+                {new Date(ticket.createdAt).toLocaleString()}
+              </p>
+            </article>
+          ))}
         </section>
       </main>
     </div>
