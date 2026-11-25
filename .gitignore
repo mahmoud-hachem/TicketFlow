@@ -1,0 +1,8 @@
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+
+# Local backend configuration
+application-local.properties
+application-local.yml

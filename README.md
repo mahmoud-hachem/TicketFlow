@@ -51,8 +51,48 @@ Phase 1 defined the scope, requirements, architecture, and initial Jira backlog.
 
 ## Running TicketFlow
 
-_To be added after the Spring Boot and React projects are initialized and verified in `TIC-9`._
 
+### Prerequisites
+
+- Java 21
+- Node.js 24
+- npm
+- Git
+- MongoDB Atlas access
+
+Maven is provided through the Maven Wrapper.
+
+### Backend setup (Windows)
+
+1. Open a terminal in the `backend` directory.
+2. Configure the `MONGODB_URI` environment variable using authorized MongoDB Atlas credentials.
+3. Run:
+
+   `mvnw.cmd spring-boot:run`
+
+The backend runs at http://localhost:8080.
+
+### Frontend setup
+
+1. Open a separate terminal in the `frontend` directory.
+2. Run `npm ci`.
+3. Run `npm run dev`.
+
+The frontend runs at http://localhost:5173.
+
+### Database configuration
+
+MongoDB Atlas is used for persistence. Each developer must have authorized database credentials and an allowed IP address.
+
+Database credentials must never be committed to GitHub.
+
+### Frontend/backend communication
+
+The Vite development proxy forwards `/api` requests to the Spring Boot backend on port 8080.
+
+### Implementation status
+
+TIC-9 establishes the development environment. Ticket management features will be implemented incrementally in TIC-3 through TIC-8.
 ## Security note
 
 MongoDB credentials must be provided through environment variables or local configuration that is excluded from Git. Never commit secrets or real database connection strings.
