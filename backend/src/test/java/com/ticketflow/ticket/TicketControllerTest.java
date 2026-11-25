@@ -121,4 +121,65 @@ class TicketControllerTest {
 
         verifyNoInteractions(ticketService);
     }
+
+    @Test
+    void shouldRejectMissingFields() throws Exception {
+
+        mockMvc.perform(post("/api/tickets")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.title").exists())
+                .andExpect(jsonPath("$.fieldErrors.description").exists())
+                .andExpect(jsonPath("$.fieldErrors.requesterName").exists())
+                .andExpect(jsonPath("$.fieldErrors.priority").exists());
+
+        verifyNoInteractions(ticketService);
+    }
+
+    @Test
+    void shouldRejectBlankDescription() throws Exception {
+
+        mockMvc.perform(post("/api/tickets")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "title": "Printer problem",
+                      "description": "   ",
+                      "requesterName": "Test User",
+                      "priority": "HIGH"
+                    }
+                    """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.description").exists());
+
+        verifyNoInteractions(ticketService);
+    }
+
+    @Test
+    void shouldRejectOverLimitFields() throws Exception {
+
+        String json = """
+                {
+                  "title": "%s",
+                  "description": "%s",
+                  "requesterName": "%s",
+                  "priority": "HIGH"
+                }
+                """.formatted(
+                    "A".repeat(121),
+                    "B".repeat(2001),
+                    "C".repeat(101)
+                );
+
+        mockMvc.perform(post("/api/tickets")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.title").exists())
+                .andExpect(jsonPath("$.fieldErrors.description").exists())
+                .andExpect(jsonPath("$.fieldErrors.requesterName").exists());
+
+        verifyNoInteractions(ticketService);
+    }
 }
