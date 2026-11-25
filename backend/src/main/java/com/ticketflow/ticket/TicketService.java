@@ -2,6 +2,8 @@
 package com.ticketflow.ticket;
 
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
+import org.springframework.http.HttpStatus;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -39,19 +41,7 @@ public class TicketService {
 
         Ticket saved = ticketRepository.save(ticket);
 
-        return new TicketDetailResponse(
-                saved.getId(),
-                saved.getTitle(),
-                saved.getDescription(),
-                saved.getRequesterName(),
-                saved.getPriority(),
-                saved.getStatus(),
-                null,
-                List.of(),
-                saved.getCreatedAt(),
-                saved.getUpdatedAt(),
-                saved.getVersion()
-        );
+        return toDetailResponse(saved);
     }
 
     public List<TicketSummaryResponse> listTickets() {
@@ -70,5 +60,32 @@ public class TicketService {
                         ticket.getVersion()
                 ))
                 .toList();
+    }
+
+    public TicketDetailResponse getTicketById(String id) {
+
+        Ticket ticket = ticketRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Ticket not found"
+                ));
+
+        return toDetailResponse(ticket);
+    }
+
+    private TicketDetailResponse toDetailResponse(Ticket ticket) {
+        return new TicketDetailResponse(
+                ticket.getId(),
+                ticket.getTitle(),
+                ticket.getDescription(),
+                ticket.getRequesterName(),
+                ticket.getPriority(),
+                ticket.getStatus(),
+                null,
+                List.of(),
+                ticket.getCreatedAt(),
+                ticket.getUpdatedAt(),
+                ticket.getVersion()
+        );
     }
 }
