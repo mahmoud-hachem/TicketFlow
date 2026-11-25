@@ -6,6 +6,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.net.URI;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/tickets")
@@ -29,5 +30,11 @@ public class TicketController {
 
         return ResponseEntity.created(location)
                 .body(response);
+    }
+
+    @GetMapping
+    public ResponseEntity<List<TicketSummaryResponse>> listTickets() {
+        return ResponseEntity.ok(
+                ticketService.listTickets());
     }
 }
