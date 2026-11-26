@@ -10,6 +10,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
+import org.springframework.context.annotation.Profile;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.ErrorResponseException;
@@ -146,6 +147,7 @@ class RestExceptionHandlerTest {
     }
 
     @RestController
+    @Profile("exception-handler-unit-test")
     static class FailureController {
         private final RuntimeException failure;
 

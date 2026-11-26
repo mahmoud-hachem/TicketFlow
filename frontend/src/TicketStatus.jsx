@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
+import useTicketMutation from './useTicketMutation.js'
 
 const transitions = {
   OPEN: ['IN_PROGRESS'],
@@ -9,11 +10,7 @@ const transitions = {
 
 function TicketStatus({ ticket, workflow, onBegin, onEnd, onUpdated }) {
   const [choice, setChoice] = useState('')
-  const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState('')
-  const [success, setSuccess] = useState('')
-  const mutationRef = useRef(null)
-  useEffect(() => () => mutationRef.current?.abort(), [])
+  const { submitting, error, success, clearFeedback, run } = useTicketMutation({ onBegin, onEnd })
 
   const options = (transitions[ticket.status] ?? [])
     .filter(status => status !== 'IN_PROGRESS' || Boolean(ticket.assignedAgent))
@@ -23,47 +20,22 @@ function TicketStatus({ ticket, workflow, onBegin, onEnd, onUpdated }) {
 
   async function update(event) {
     event.preventDefault()
-    if (mutationRef.current || blocked || !onBegin()) return
-    const controller = new AbortController()
-    mutationRef.current = controller
-    let reloadNeeded = false
-    setSubmitting(true)
-    setError('')
-    setSuccess('')
-    try {
-      const response = await fetch(`/api/tickets/${encodeURIComponent(ticket.id)}/status`, {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: next, expectedVersion: ticket.version }),
-        signal: controller.signal
-      })
-      const data = await response.json().catch(() => null)
-      if (controller.signal.aborted || mutationRef.current !== controller) return
-      if (!response.ok) {
-        reloadNeeded = response.status >= 500 || response.status === 409 ||
-          data?.errorCode === 'TICKET_NOT_FOUND' || Boolean(data?.fieldErrors?.expectedVersion)
-        const fields = data?.fieldErrors && typeof data.fieldErrors === 'object'
-          ? Object.values(data.fieldErrors).filter(value => typeof value === 'string').join(' ') : ''
-        setError(data?.errorCode === 'VERSION_CONFLICT'
-          ? 'This ticket changed. Reload the ticket, review its latest status, then submit again.'
-          : fields || (typeof data?.detail === 'string' ? data.detail : 'Unable to update ticket status.'))
-        return
-      }
-      if (data?.id !== ticket.id || data.status !== next || !Number.isSafeInteger(data.version) ||
-        data.version <= ticket.version || !Array.isArray(data.comments)) throw new Error('Unconfirmed status response')
-      onUpdated(data)
-      setSuccess(`Status updated to ${data.status}.`)
-    } catch {
-      if (!controller.signal.aborted) {
-        reloadNeeded = true
-        setError('The status update outcome could not be confirmed. Reload this ticket before trying again.')
-      }
-    } finally {
-      if (mutationRef.current === controller) {
-        mutationRef.current = null
-        if (!controller.signal.aborted) setSubmitting(false)
-        onEnd(reloadNeeded)
-      }
-    }
+    if (blocked) return
+    await run({
+      url: `/api/tickets/${encodeURIComponent(ticket.id)}/status`, method: 'PATCH',
+      body: { status: next, expectedVersion: ticket.version }, showFieldErrors: true,
+      validateResponse: data => data?.id === ticket.id && data.status === next &&
+        Number.isSafeInteger(data.version) && data.version > ticket.version && Array.isArray(data.comments),
+      onSuccess: data => {
+        onUpdated(data)
+        return `Status updated to ${data.status}.`
+      },
+      messages: {
+        conflict: 'This ticket changed. Reload the ticket, review its latest status, then submit again.',
+        failure: 'Unable to update ticket status.',
+        unconfirmed: 'The status update outcome could not be confirmed. Reload this ticket before trying again.',
+      },
+    })
   }
 
   return (
@@ -77,7 +49,7 @@ function TicketStatus({ ticket, workflow, onBegin, onEnd, onUpdated }) {
       <form className="assignment-form" onSubmit={update} aria-busy={submitting}>
         <label htmlFor={`next-status-${ticket.id}`}>Next status</label>
         <select id={`next-status-${ticket.id}`} value={next} disabled={blocked}
-          onChange={event => { setChoice(event.target.value); setError(''); setSuccess('') }}>
+          onChange={event => { setChoice(event.target.value); clearFeedback() }}>
           {!options.length && <option value="">No status changes available</option>}
           {options.map(status => <option key={status} value={status}>{status}</option>)}
         </select>

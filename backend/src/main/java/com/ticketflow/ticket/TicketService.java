@@ -94,14 +94,8 @@ public class TicketService {
             throw new InvalidTicketInputException("Assignment request is required");
         }
         Ticket.requireUuidString(request.agentId(), "Agent ID");
-        if (request.expectedVersion() == null || request.expectedVersion() < 0) {
-            throw new InvalidTicketInputException("Expected version must be nonnegative");
-        }
-        Ticket ticket = loadTicket(id);
-        requirePersistedVersion(ticket);
-        if (!ticket.getVersion().equals(request.expectedVersion())) {
-            throw new TicketVersionConflictException();
-        }
+        requireExpectedVersion(request.expectedVersion(), "Expected version must be nonnegative");
+        Ticket ticket = loadCurrentTicket(id, request.expectedVersion());
 
         // Reject predictable mapping failures and dangling current assignments before writing.
         requireDetailIntegrity(ticket);
@@ -122,10 +116,7 @@ public class TicketService {
         if (!request.agentId().equals(agent.getId())) {
             throw new TicketIntegrityException("Agent lookup returned a different identifier");
         }
-        Instant at = Instant.now(clock);
-        if (at == null) {
-            throw new TicketIntegrityException("Assignment clock returned no timestamp");
-        }
+        Instant at = mutationTime("Assignment");
         ticket.assignAgent(agent.getId(), at);
         Ticket saved = ticketRepository.save(ticket);
 
@@ -135,38 +126,30 @@ public class TicketService {
 
     public TicketDetailResponse changeStatus(String id, ChangeTicketStatusRequest request) {
         Ticket.requireUuidString(id, "Ticket ID");
-        if (request == null || request.status() == null || request.expectedVersion() == null
-                || request.expectedVersion() < 0) {
+        if (request == null || request.status() == null) {
             throw new InvalidTicketInputException("Status and nonnegative expected version are required");
         }
-        Ticket ticket = loadTicket(id);
-        requirePersistedVersion(ticket);
-        if (!ticket.getVersion().equals(request.expectedVersion())) {
-            throw new TicketVersionConflictException();
-        }
+        requireExpectedVersion(request.expectedVersion(), "Status and nonnegative expected version are required");
+        Ticket ticket = loadCurrentTicket(id, request.expectedVersion());
         // Resolve references and validate response data before any mutation or save.
         TicketDetailResponse current = toDetailResponse(ticket);
         Map<String, AgentSummaryResponse> agents = ticket.getAssignedAgentId() == null
                 ? Map.of() : Map.of(ticket.getAssignedAgentId(),
                         current.assignedAgent());
-        Instant at = Instant.now(clock);
-        if (at == null) throw new TicketIntegrityException("Status clock returned no timestamp");
+        Instant at = mutationTime("Status");
         ticket.changeStatus(request.status(), at);
         return toDetailResponse(ticketRepository.save(ticket), agents);
     }
 
     public CommentCreatedResponse addComment(String id, AddCommentRequest request) {
         Ticket.requireUuidString(id, "Ticket ID");
-        if (request == null || request.expectedVersion() == null || request.expectedVersion() < 0) {
+        if (request == null) {
             throw new InvalidTicketInputException("Comment and nonnegative expected version are required");
         }
+        requireExpectedVersion(request.expectedVersion(), "Comment and nonnegative expected version are required");
         Comment.validate(request.authorName(), 100);
         Comment.validate(request.content(), 2000);
-        Ticket ticket = loadTicket(id);
-        requirePersistedVersion(ticket);
-        if (!ticket.getVersion().equals(request.expectedVersion())) {
-            throw new TicketVersionConflictException();
-        }
+        Ticket ticket = loadCurrentTicket(id, request.expectedVersion());
         toDetailResponse(ticket);
         String commentId = idGenerator.get();
         try {
@@ -174,8 +157,7 @@ public class TicketService {
         } catch (InvalidTicketInputException ex) {
             throw new TicketIntegrityException("Comment generator returned an invalid identifier");
         }
-        Instant at = Instant.now(clock);
-        if (at == null) throw new TicketIntegrityException("Comment clock returned no timestamp");
+        Instant at = mutationTime("Comment");
         ticket.addComment(commentId, request.authorName(), request.content(), at);
         Ticket saved = ticketRepository.save(ticket);
         requireDetailIntegrity(saved);
@@ -183,6 +165,29 @@ public class TicketService {
                 .filter(comment -> comment.id().equals(commentId)).findFirst()
                 .orElseThrow(() -> new TicketIntegrityException("Saved comment is missing"));
         return new CommentCreatedResponse(saved.getId(), created, saved.getVersion(), saved.getUpdatedAt());
+    }
+
+    private void requireExpectedVersion(Long expectedVersion, String message) {
+        if (expectedVersion == null || expectedVersion < 0) {
+            throw new InvalidTicketInputException(message);
+        }
+    }
+
+    private Ticket loadCurrentTicket(String id, Long expectedVersion) {
+        Ticket ticket = loadTicket(id);
+        requirePersistedVersion(ticket);
+        if (!ticket.getVersion().equals(expectedVersion)) {
+            throw new TicketVersionConflictException();
+        }
+        return ticket;
+    }
+
+    private Instant mutationTime(String operation) {
+        Instant at = Instant.now(clock);
+        if (at == null) {
+            throw new TicketIntegrityException(operation + " clock returned no timestamp");
+        }
+        return at;
     }
 
     private Ticket loadTicket(String id) {

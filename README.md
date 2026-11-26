@@ -100,7 +100,11 @@ The Vite development proxy forwards `/api` requests to the Spring Boot backend o
 
 ### Implementation status
 
-TIC-9 establishes the development environment. Ticket management features will be implemented incrementally in TIC-3 through TIC-8.
+TIC-3 through TIC-8 implement all six MVP features. TIC-10 isolated checks pass; real MongoDB verification remains pending explicit authorization of an isolated test database.
+
+### Verification
+
+Run `mvn test` from `backend` for isolated tests only, and `npm run lint` / `npm run build` from `frontend`. Database-dependent tests are excluded from the default Maven run and guarded against shared-database fallback. See [TIC-10 verification and database authorization requirements](docs/TIC10_VERIFICATION.md) before considering the separate integration profile. Do not execute database tests until the human developer authorizes the exact isolated target.
 ## Security note
 
 MongoDB credentials must be provided through environment variables or local configuration that is excluded from Git. Never commit secrets or real database connection strings.
