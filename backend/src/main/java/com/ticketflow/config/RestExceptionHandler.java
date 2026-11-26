@@ -8,6 +8,8 @@ import com.ticketflow.ticket.TicketIntegrityException;
 import com.ticketflow.ticket.TicketNotFoundException;
 import com.ticketflow.ticket.TicketVersionConflictException;
 import com.ticketflow.ticket.InvalidTicketInputException;
+import com.ticketflow.ticket.InvalidTransitionException;
+import com.ticketflow.ticket.AssigneeRequiredException;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -129,12 +131,32 @@ public class RestExceptionHandler {
         return problem(HttpStatus.NOT_FOUND, "AGENT_NOT_FOUND", "Agent not found", request);
     }
 
+    @ExceptionHandler(InvalidTransitionException.class)
+    public ProblemDetail handleInvalidTransition(
+            InvalidTransitionException ex, HttpServletRequest request
+    ) {
+        return problem(HttpStatus.CONFLICT, "INVALID_TRANSITION",
+                "This status transition is not permitted.", request);
+    }
+
+    @ExceptionHandler(AssigneeRequiredException.class)
+    public ProblemDetail handleAssigneeRequired(
+            AssigneeRequiredException ex, HttpServletRequest request
+    ) {
+        return problem(HttpStatus.CONFLICT, "ASSIGNEE_REQUIRED",
+                "Assign a support agent before entering IN_PROGRESS.", request);
+    }
+
     @ExceptionHandler(TicketClosedException.class)
     public ProblemDetail handleClosedTicket(
             TicketClosedException ex, HttpServletRequest request
     ) {
         return problem(HttpStatus.CONFLICT, "TICKET_CLOSED",
-                "Closed tickets cannot be assigned or reassigned.", request);
+                request.getRequestURI().endsWith("/status")
+                        ? "Closed tickets cannot change status."
+                        : request.getRequestURI().endsWith("/comments")
+                        ? "Closed tickets cannot receive new comments."
+                        : "Closed tickets cannot be assigned or reassigned.", request);
     }
 
     @ExceptionHandler({TicketVersionConflictException.class,

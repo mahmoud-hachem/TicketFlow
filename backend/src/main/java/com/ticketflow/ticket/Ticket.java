@@ -91,6 +91,38 @@ public class Ticket {
         this.updatedAt = at;
     }
 
+    public Comment addComment(String commentId, String authorName, String content, Instant at) {
+        if (status == TicketStatus.CLOSED) throw new TicketClosedException();
+        requireUuidString(commentId, "Comment ID");
+        if (at == null) throw new InvalidTicketInputException("Comment timestamp is required");
+        Comment comment = new Comment(commentId, authorName, content, at);
+        if (comments.stream().anyMatch(existing -> existing.id().equals(commentId))) {
+            throw new TicketIntegrityException("Comment ID already exists");
+        }
+        comments.add(comment);
+        updatedAt = at;
+        return comment;
+    }
+
+    public void changeStatus(TicketStatus next, Instant at) {
+        if (status == TicketStatus.CLOSED) throw new TicketClosedException();
+        if (next == null || at == null) {
+            throw new InvalidTicketInputException("Status and timestamp are required");
+        }
+        boolean allowed = switch (status) {
+            case OPEN -> next == TicketStatus.IN_PROGRESS;
+            case IN_PROGRESS -> next == TicketStatus.RESOLVED;
+            case RESOLVED -> next == TicketStatus.CLOSED || next == TicketStatus.IN_PROGRESS;
+            case CLOSED -> false;
+        };
+        if (!allowed) throw new InvalidTransitionException();
+        if (next == TicketStatus.IN_PROGRESS && (assignedAgentId == null || assignedAgentId.isBlank())) {
+            throw new AssigneeRequiredException();
+        }
+        status = next;
+        updatedAt = at;
+    }
+
     static void requireUuidString(String value, String field) {
         boolean valid = false;
         if (value != null) {

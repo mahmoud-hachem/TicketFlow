@@ -2,7 +2,7 @@
 
 **Reviewed:** 19 November 2026  
 **Scope:** Human-approved requirements FR-01–FR-06, approved architecture D1–D25, review corrections R1–R4.  
-**Status:** Design approved for implementation; tests and implementation are **not yet performed**.
+**Historical status (19 November):** Design approved for implementation; tests and implementation had not yet been performed at this review. The handoff/checklist below is preserved as historical design evidence. See [final TIC-10 results](../TIC10_VERIFICATION.md) for subsequent implementation and verification.
 
 ## Requirements-to-design traceability
 

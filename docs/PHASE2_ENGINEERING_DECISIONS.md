@@ -1,6 +1,6 @@
 # TicketFlow — Phase 2 Engineering Decision Log
 
-**Final status:** Steps 1–5 approved for the Phase 2 design baseline on 19 November 2026. No implementation or testing is claimed.
+**Historical design status:** Steps 1–5 approved for the Phase 2 design baseline on 19 November 2026. This phase itself claimed no implementation or testing. Future-tense implementation statements below describe that date; current results are in [TIC-10 verification](TIC10_VERIFICATION.md) and the [development record](AGENTIC_DEVELOPMENT.md).
 
 
 ## Step 1: System Architecture

@@ -18,16 +18,16 @@ public record Comment(
         content = validate(content, 2000);
     }
 
-    private static String validate(String value, int maxLength) {
+    static String validate(String value, int maxLength) {
         if (value == null || value.strip().isBlank()) {
-            throw new IllegalArgumentException(
+            throw new InvalidTicketInputException(
                     "Comment fields must not be blank");
         }
 
         String trimmed = value.strip();
 
         if (trimmed.length() > maxLength) {
-            throw new IllegalArgumentException(
+            throw new InvalidTicketInputException(
                     "Maximum length exceeded: " + maxLength);
         }
 

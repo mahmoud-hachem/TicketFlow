@@ -90,4 +90,4 @@ The targets below are **design acceptance criteria**, not claims of completed te
 - Field maximums after trimming: `title <= 120`, `description <= 2000`, `requesterName <= 100`, `comment.authorName <= 100`, `comment.content <= 2000` characters. Text must also be nonblank.
 - No authentication or authorization is implemented; display names are **not verified identities**.
 
-See `docs/design/REST_API_CONTRACT.md` and `docs/design/DESIGN_REVIEW.md` for planned implementation and verification. Update Jira acceptance criteria for `TIC-3` (length limits) and `TIC-8` (comment length limits), plus relevant quality tasks, before implementing them.
+See the [API contract](design/REST_API_CONTRACT.md), [design review](design/DESIGN_REVIEW.md) and [final verification evidence](TIC10_VERIFICATION.md). The requirement to synchronize Jira acceptance criteria for `TIC-3` (length limits), `TIC-8` (comment length limits) and relevant quality tasks remains a traceability obligation; this repository finalization does not assert that Jira updates occurred.

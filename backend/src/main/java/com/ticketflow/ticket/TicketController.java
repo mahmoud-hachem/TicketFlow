@@ -46,6 +46,22 @@ public class TicketController {
         return ResponseEntity.ok(ticketService.assignAgent(id, request));
     }
 
+    @PatchMapping("/{id}/status")
+    public ResponseEntity<TicketDetailResponse> changeStatus(
+            @PathVariable String id,
+            @Valid @RequestBody ChangeTicketStatusRequest request
+    ) {
+        return ResponseEntity.ok(ticketService.changeStatus(id, request));
+    }
+
+    @PostMapping("/{id}/comments")
+    public ResponseEntity<CommentCreatedResponse> addComment(
+            @PathVariable String id,
+            @Valid @RequestBody AddCommentRequest request
+    ) {
+        return ResponseEntity.status(201).body(ticketService.addComment(id, request));
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<TicketDetailResponse> getTicketById(
             @PathVariable String id

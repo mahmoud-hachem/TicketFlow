@@ -1,6 +1,8 @@
 
 import { useEffect, useRef, useState } from 'react'
 import TicketAssignment from './TicketAssignment.jsx'
+import TicketStatus from './TicketStatus.jsx'
+import TicketComments from './TicketComments.jsx'
 import './App.css'
 
 const initialForm = {
@@ -27,6 +29,9 @@ function App() {
   const selectionRef = useRef(null)
   const listRequestRef = useRef(null)
   const detailRequestRef = useRef(null)
+  const workflowRef = useRef({ busy: false, reload: false })
+  const [workflow, setWorkflow] = useState({ busy: false, reload: false })
+  const [commentDraft, setCommentDraft] = useState({ ticketId: null, authorName: '', content: '' })
   const [selectedTicket, setSelectedTicket] = useState(null)
   const [detailLoading, setDetailLoading] = useState(false)
   const [detailError, setDetailError] = useState('')
@@ -115,9 +120,17 @@ function App() {
     return () => controller.abort()
   }, [selection])
 
+  function updateWorkflow(next) {
+    workflowRef.current = next
+    setWorkflow(next)
+  }
+
   function viewDetails(id) {
+    setCommentDraft(previous => previous.ticketId === id
+      ? previous : { ticketId: id, authorName: '', content: '' })
     const nextSelection = { id }
     selectionRef.current = nextSelection
+    updateWorkflow({ busy: false, reload: false })
     detailRequestRef.current?.abort()
     setSelectedTicket(null)
     setDetailError('')
@@ -127,6 +140,7 @@ function App() {
 
   function closeDetails() {
     selectionRef.current = null
+    updateWorkflow({ busy: false, reload: false })
     detailRequestRef.current?.abort()
     setSelection(null)
     setSelectedTicket(null)
@@ -134,7 +148,18 @@ function App() {
     setDetailLoading(false)
   }
 
-  function handleAssigned(updated, sourceSelection) {
+  function beginMutation(sourceSelection) {
+    if (selectionRef.current !== sourceSelection || workflowRef.current.busy || workflowRef.current.reload) return false
+    updateWorkflow({ ...workflowRef.current, busy: true })
+    return true
+  }
+
+  function endMutation(sourceSelection, reload) {
+    if (selectionRef.current !== sourceSelection) return
+    updateWorkflow({ busy: false, reload: workflowRef.current.reload || reload })
+  }
+
+  function handleTicketUpdated(updated, sourceSelection) {
     if (selectionRef.current !== sourceSelection) return
 
     // A read started before this successful mutation must not restore older data.
@@ -158,6 +183,15 @@ function App() {
           version: updated.version
         }
       : ticket))
+  }
+
+  function handleCommentCreated(response, sourceSelection) {
+    if (selectionRef.current !== sourceSelection) return
+    const comments = [...selectedTicket.comments.filter(comment => comment.id !== response.comment.id), response.comment]
+      .sort((left, right) => Date.parse(left.createdAt) - Date.parse(right.createdAt) ||
+        (left.id < right.id ? -1 : left.id > right.id ? 1 : 0))
+    handleTicketUpdated({ ...selectedTicket, comments, version: response.ticketVersion,
+      updatedAt: response.updatedAt }, sourceSelection)
   }
 
   function handleChange(event) {
@@ -459,13 +493,38 @@ function App() {
                       <TicketAssignment
                         key={selectedTicket.id}
                         ticket={selectedTicket}
-                        onAssigned={updated => handleAssigned(updated, selection)}
+                        onAssigned={updated => handleTicketUpdated(updated, selection)}
                         onReload={() => viewDetails(selectedId)}
+                        workflow={workflow}
+                        onBegin={() => beginMutation(selection)}
+                        onEnd={reload => endMutation(selection, reload)}
+                      />
+
+                      <TicketStatus
+                        key={`status-${selectedTicket.id}`}
+                        ticket={selectedTicket}
+                        workflow={workflow}
+                        onBegin={() => beginMutation(selection)}
+                        onEnd={reload => endMutation(selection, reload)}
+                        onUpdated={updated => handleTicketUpdated(updated, selection)}
                       />
 
                       <hr />
 
                       <h3>Comments</h3>
+
+                      <TicketComments
+                        key={`comments-${selectedTicket.id}`}
+                        ticket={selectedTicket}
+                        workflow={workflow}
+                        draft={commentDraft}
+                        onDraftChange={draft => {
+                          if (selectionRef.current === selection) setCommentDraft({ ticketId: selectedId, ...draft })
+                        }}
+                        onBegin={() => beginMutation(selection)}
+                        onEnd={reload => endMutation(selection, reload)}
+                        onCreated={response => handleCommentCreated(response, selection)}
+                      />
 
                       {!selectedTicket.comments?.length && (
                         <p>No comments yet.</p>
@@ -477,7 +536,7 @@ function App() {
                           key={comment.id}
                         >
                           <strong>{comment.authorName}</strong>
-                          <p>{comment.content}</p>
+                          <p style={{ whiteSpace: 'pre-wrap' }}>{comment.content}</p>
                           <small>
                             {new Date(comment.createdAt).toLocaleString()}
                           </small>
