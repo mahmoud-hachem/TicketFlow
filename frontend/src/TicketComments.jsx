@@ -1,79 +1,46 @@
-import { useEffect, useRef, useState } from 'react'
+import useTicketMutation from './useTicketMutation.js'
 
 function TicketComments({ ticket, workflow, draft, onDraftChange, onBegin, onEnd, onCreated }) {
-  const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState('')
-  const [fieldErrors, setFieldErrors] = useState({})
-  const [success, setSuccess] = useState('')
-  const mutationRef = useRef(null)
-  useEffect(() => () => mutationRef.current?.abort(), [])
+  const { submitting, error, fieldErrors, success, clearFeedback, setFieldErrors, run } =
+    useTicketMutation({ onBegin, onEnd })
   const blocked = ticket.status === 'CLOSED' || workflow.busy || workflow.reload ||
     !Number.isSafeInteger(ticket.version) || ticket.version < 0
 
   async function submit(event) {
     event.preventDefault()
-    if (blocked || mutationRef.current) return
+    if (blocked) return
     const authorName = draft.authorName.trim()
     const content = draft.content.trim()
     const fields = {}
     if (!authorName || authorName.length > 100) fields.authorName = 'Enter an author name of 1 to 100 characters.'
     if (!content || content.length > 2000) fields.content = 'Enter a comment of 1 to 2000 characters.'
+    clearFeedback()
     setFieldErrors(fields)
-    setError('')
-    setSuccess('')
-    if (Object.keys(fields).length || !onBegin()) return
-    const controller = new AbortController()
-    mutationRef.current = controller
-    let reloadNeeded = false
-    setSubmitting(true)
-    try {
-      const response = await fetch(`/api/tickets/${encodeURIComponent(ticket.id)}/comments`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ authorName, content, expectedVersion: ticket.version }),
-        signal: controller.signal
-      })
-      const data = await response.json().catch(() => null)
-      if (controller.signal.aborted || mutationRef.current !== controller) return
-      if (!response.ok) {
-        const errors = data?.fieldErrors
-        setFieldErrors(errors && typeof errors === 'object'
-          ? Object.fromEntries(Object.entries(errors).filter(([, value]) => typeof value === 'string')) : {})
-        reloadNeeded = response.status >= 500 || response.status === 409 ||
-          data?.errorCode === 'TICKET_NOT_FOUND' || Boolean(errors?.expectedVersion)
-        setError(data?.errorCode === 'VERSION_CONFLICT'
-          ? 'This ticket changed. Reload the ticket, review the comments, then submit your draft again.'
-          : typeof data?.detail === 'string' ? data.detail : 'Unable to add the comment.')
-        return
-      }
-      if (response.status !== 201 || data?.ticketId !== ticket.id ||
-        !Number.isSafeInteger(data.ticketVersion) || data.ticketVersion <= ticket.version ||
-        typeof data.comment?.id !== 'string' || !data.comment.id ||
-        typeof data.comment.authorName !== 'string' || typeof data.comment.content !== 'string' ||
-        !Number.isFinite(Date.parse(data.comment.createdAt)) || !Number.isFinite(Date.parse(data.updatedAt))) {
-        throw new Error('Unconfirmed comment response')
-      }
-      onCreated(data)
-      onDraftChange({ authorName: '', content: '' })
-      setSuccess('Comment added successfully.')
-    } catch {
-      if (!controller.signal.aborted) {
-        reloadNeeded = true
-        setError('The comment outcome could not be confirmed. Reload this ticket and check its comments before retrying.')
-      }
-    } finally {
-      if (mutationRef.current === controller) {
-        mutationRef.current = null
-        if (!controller.signal.aborted) setSubmitting(false)
-        onEnd(reloadNeeded)
-      }
-    }
+    if (Object.keys(fields).length) return
+    await run({
+      url: `/api/tickets/${encodeURIComponent(ticket.id)}/comments`, method: 'POST',
+      body: { authorName, content, expectedVersion: ticket.version },
+      validateResponse: (data, response) => response.status === 201 && data?.ticketId === ticket.id &&
+        Number.isSafeInteger(data.ticketVersion) && data.ticketVersion > ticket.version &&
+        typeof data.comment?.id === 'string' && Boolean(data.comment.id) &&
+        typeof data.comment.authorName === 'string' && typeof data.comment.content === 'string' &&
+        Number.isFinite(Date.parse(data.comment.createdAt)) && Number.isFinite(Date.parse(data.updatedAt)),
+      onSuccess: data => {
+        onCreated(data)
+        onDraftChange({ authorName: '', content: '' })
+        return 'Comment added successfully.'
+      },
+      messages: {
+        conflict: 'This ticket changed. Reload the ticket, review the comments, then submit your draft again.',
+        failure: 'Unable to add the comment.',
+        unconfirmed: 'The comment outcome could not be confirmed. Reload this ticket and check its comments before retrying.',
+      },
+    })
   }
 
   function change(field, value) {
     onDraftChange({ authorName: draft.authorName, content: draft.content, [field]: value })
-    setFieldErrors({})
-    setError('')
-    setSuccess('')
+    clearFeedback()
   }
 
   return (

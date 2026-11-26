@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
+import useTicketMutation from './useTicketMutation.js'
 
 function TicketAssignment({ ticket, onAssigned, onReload, workflow, onBegin, onEnd }) {
   const [agents, setAgents] = useState([])
@@ -6,12 +7,8 @@ function TicketAssignment({ ticket, onAssigned, onReload, workflow, onBegin, onE
   const [agentsError, setAgentsError] = useState('')
   const [agentsRefresh, setAgentsRefresh] = useState(0)
   const [agentId, setAgentId] = useState(ticket.assignedAgent?.id ?? '')
-  const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState('')
-  const [fieldErrors, setFieldErrors] = useState({})
-  const [requiresReload, setRequiresReload] = useState(false)
-  const [success, setSuccess] = useState('')
-  const mutationRef = useRef(null)
+  const { submitting, error, fieldErrors, requiresReload, success,
+    clearFeedback, setFieldErrors, run } = useTicketMutation({ onBegin, onEnd })
 
   useEffect(() => {
     const controller = new AbortController()
@@ -42,8 +39,6 @@ function TicketAssignment({ ticket, onAssigned, onReload, workflow, onBegin, onE
     return () => controller.abort()
   }, [agentsRefresh])
 
-  useEffect(() => () => mutationRef.current?.abort(), [])
-
   const closed = ticket.status === 'CLOSED'
   const validVersion = Number.isSafeInteger(ticket.version) && ticket.version >= 0
   const availableSelection = agents.some(agent => agent.id === agentId)
@@ -52,70 +47,30 @@ function TicketAssignment({ ticket, onAssigned, onReload, workflow, onBegin, onE
 
   async function assign(event) {
     event.preventDefault()
-    if (mutationRef.current || blocked) return
+    if (blocked) return
     if (!availableSelection) {
       setFieldErrors({ agentId: 'Select an available support agent.' })
       return
     }
-
-    if (!onBegin()) return
-    let reloadNeeded = false
-    const controller = new AbortController()
-    mutationRef.current = controller
-    setSubmitting(true)
-    setError('')
-    setFieldErrors({})
-    setSuccess('')
-
-    try {
-      const response = await fetch(
-        `/api/tickets/${encodeURIComponent(ticket.id)}/assignment`,
-        {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ agentId, expectedVersion: ticket.version }),
-          signal: controller.signal
-        }
-      )
-      const data = await response.json().catch(() => null)
-      if (controller.signal.aborted || mutationRef.current !== controller) return
-
-      if (!response.ok) {
-        const fields = data?.fieldErrors
-        setFieldErrors(fields && typeof fields === 'object'
-          ? Object.fromEntries(Object.entries(fields).filter(([, value]) => typeof value === 'string'))
-          : {})
-        const conflict = response.status === 409 && data?.errorCode === 'VERSION_CONFLICT'
-        reloadNeeded = conflict || response.status >= 500 ||
-          data?.errorCode === 'TICKET_CLOSED' || data?.errorCode === 'TICKET_NOT_FOUND' ||
-          Boolean(fields?.expectedVersion)
-        setRequiresReload(reloadNeeded)
-        setError(conflict
-          ? 'This ticket changed. Reload the ticket, review the latest assignment, then submit again.'
-          : typeof data?.detail === 'string' ? data.detail : 'Unable to update the assignment.')
-        return
-      }
-
-      if (data?.id !== ticket.id || !Number.isSafeInteger(data.version) ||
-        data.version <= ticket.version || data.assignedAgent?.id !== agentId ||
-        typeof data.assignedAgent?.name !== 'string' || !Array.isArray(data.comments)) {
-        throw new Error('Unconfirmed assignment response')
-      }
-      onAssigned(data)
-      setSuccess(`Assigned to ${data.assignedAgent.name}.`)
-    } catch {
-      if (!controller.signal.aborted && mutationRef.current === controller) {
-        setRequiresReload(true)
-        reloadNeeded = true
-        setError('The assignment outcome could not be confirmed. Reload this ticket before trying again.')
-      }
-    } finally {
-      if (mutationRef.current === controller) {
-        mutationRef.current = null
-        if (!controller.signal.aborted) setSubmitting(false)
-        onEnd(reloadNeeded)
-      }
-    }
+    await run({
+      url: `/api/tickets/${encodeURIComponent(ticket.id)}/assignment`, method: 'PATCH',
+      body: { agentId, expectedVersion: ticket.version },
+      reloadOnError: (response, data) => response.status >= 500 ||
+        (response.status === 409 && data?.errorCode === 'VERSION_CONFLICT') ||
+        ['TICKET_CLOSED', 'TICKET_NOT_FOUND'].includes(data?.errorCode) || Boolean(data?.fieldErrors?.expectedVersion),
+      validateResponse: data => data?.id === ticket.id && Number.isSafeInteger(data.version) &&
+        data.version > ticket.version && data.assignedAgent?.id === agentId &&
+        typeof data.assignedAgent?.name === 'string' && Array.isArray(data.comments),
+      onSuccess: data => {
+        onAssigned(data)
+        return `Assigned to ${data.assignedAgent.name}.`
+      },
+      messages: {
+        conflict: 'This ticket changed. Reload the ticket, review the latest assignment, then submit again.',
+        failure: 'Unable to update the assignment.',
+        unconfirmed: 'The assignment outcome could not be confirmed. Reload this ticket before trying again.',
+      },
+    })
   }
 
   const fieldId = `assignment-agent-${ticket.id}`
@@ -143,9 +98,7 @@ function TicketAssignment({ ticket, onAssigned, onReload, workflow, onBegin, onE
           aria-describedby={fieldErrors.agentId ? `${fieldId}-error` : undefined}
           onChange={event => {
             setAgentId(event.target.value)
-            setFieldErrors({})
-            setError('')
-            setSuccess('')
+            clearFeedback()
           }}
         >
           <option value="">Select an agent</option>

@@ -63,10 +63,61 @@
 	<build>
 		<plugins>
 			<plugin>
+				<groupId>org.jacoco</groupId>
+				<artifactId>jacoco-maven-plugin</artifactId>
+				<version>0.8.14</version>
+				<configuration><append>false</append></configuration>
+				<executions>
+					<execution><goals><goal>prepare-agent</goal></goals></execution>
+					<execution><id>coverage-report</id><phase>test</phase><goals><goal>report</goal></goals></execution>
+				</executions>
+			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-pmd-plugin</artifactId>
+				<version>3.28.0</version>
+				<configuration>
+					<rulesets><ruleset>${project.basedir}/config/pmd.xml</ruleset></rulesets>
+					<includeTests>false</includeTests>
+					<minimumTokens>100</minimumTokens>
+					<failOnViolation>false</failOnViolation>
+					<linkXRef>false</linkXRef>
+					<skipPmdError>false</skipPmdError>
+				</configuration>
+			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-surefire-plugin</artifactId>
+				<configuration>
+					<excludes>
+						<exclude>**/BackendApplicationTests.java</exclude>
+						<exclude>**/*IT.java</exclude>
+					</excludes>
+				</configuration>
+			</plugin>
+			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
 			</plugin>
 		</plugins>
 	</build>
+	<profiles>
+		<profile>
+			<id>mongo-integration</id>
+			<build><plugins><plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-surefire-plugin</artifactId>
+				<configuration>
+					<includes combine.self="override">
+						<include>**/*IT.java</include>
+						<include>**/BackendApplicationTests.java</include>
+					</includes>
+					<excludes combine.self="override" />
+					<reportsDirectory>${project.build.directory}/mongo-integration-reports</reportsDirectory>
+					<systemPropertyVariables><ticketflow.integration.enabled>true</ticketflow.integration.enabled></systemPropertyVariables>
+				</configuration>
+			</plugin></plugins></build>
+		</profile>
+	</profiles>
 
 </project>
