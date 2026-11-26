@@ -5,6 +5,8 @@ import com.ticketflow.config.RestExceptionHandler;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import com.ticketflow.agent.AgentRepository;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
@@ -28,6 +30,7 @@ class TicketDetailTest {
 
         TicketService ticketService = new TicketService(
                 ticketRepository,
+                mock(AgentRepository.class),
                 Clock.systemUTC(),
                 () -> "test-id"
         );
@@ -41,7 +44,7 @@ class TicketDetailTest {
 
     private Ticket createTestTicket() {
 
-        return new Ticket(
+        Ticket ticket = new Ticket(
                 "ticket-1",
                 "Printer not working",
                 "The office printer is not responding.",
@@ -49,6 +52,8 @@ class TicketDetailTest {
                 Priority.MEDIUM,
                 Instant.parse("2026-11-25T10:00:00Z")
         );
+        ReflectionTestUtils.setField(ticket, "version", 0L);
+        return ticket;
     }
 
     @Test

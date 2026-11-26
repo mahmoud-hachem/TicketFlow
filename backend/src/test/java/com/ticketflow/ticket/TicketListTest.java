@@ -3,6 +3,8 @@ package com.ticketflow.ticket;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import com.ticketflow.agent.AgentRepository;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
@@ -27,6 +29,7 @@ class TicketListTest {
 
         ticketService = new TicketService(
                 ticketRepository,
+                mock(AgentRepository.class),
                 Clock.systemUTC(),
                 () -> "test-id"
         );
@@ -42,7 +45,7 @@ class TicketListTest {
             String title,
             Instant createdAt
     ) {
-        return new Ticket(
+        Ticket ticket = new Ticket(
                 id,
                 title,
                 "Test description",
@@ -50,6 +53,8 @@ class TicketListTest {
                 Priority.HIGH,
                 createdAt
         );
+        ReflectionTestUtils.setField(ticket, "version", 0L);
+        return ticket;
     }
 
     @Test

@@ -11,6 +11,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.UUID;
 
 @Document(collection = "tickets")
 public class Ticket {
@@ -62,19 +63,47 @@ public class Ticket {
             String value, String field, int maxLength
     ) {
         if (value == null || value.strip().isBlank()) {
-            throw new IllegalArgumentException(
+            throw new InvalidTicketInputException(
                     field + " is required");
         }
 
         String trimmed = value.strip();
 
         if (trimmed.length() > maxLength) {
-            throw new IllegalArgumentException(
+            throw new InvalidTicketInputException(
                     field + " cannot exceed "
                             + maxLength + " characters");
         }
 
         return trimmed;
+    }
+
+    public void assignAgent(String agentId, Instant at) {
+        if (status == TicketStatus.CLOSED) {
+            throw new TicketClosedException();
+        }
+        requireUuidString(agentId, "Agent ID");
+        if (at == null) {
+            throw new InvalidTicketInputException("Assignment timestamp is required");
+        }
+
+        this.assignedAgentId = agentId;
+        this.updatedAt = at;
+    }
+
+    static void requireUuidString(String value, String field) {
+        boolean valid = false;
+        if (value != null) {
+            try {
+                valid = UUID.fromString(value).toString().equalsIgnoreCase(value);
+            } catch (IllegalArgumentException ex) {
+                // Convert only this known input-format failure to a validation error.
+            }
+        }
+        if (!valid) {
+            throw new InvalidTicketInputException(field + " must be a UUID string");
+        }
+        // Validate format only: repository lookups retain the exact input string.
     }
 
     public String getId() {

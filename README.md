@@ -86,6 +86,14 @@ MongoDB Atlas is used for persistence. Each developer must have authorized datab
 
 Database credentials must never be committed to GitHub.
 
+### Demo agent seeding (TIC-6, Increment 1)
+
+`GET /api/agents` returns stored agents as `id` and `name`, ordered by name and then ID. Emails are not returned.
+
+Demo seeding is **disabled by default** through `ticketflow.demo-seeding.enabled=false`. To opt in for an authorized development/demo database, run `mvnw.cmd spring-boot:run "-Dspring-boot.run.arguments=--ticketflow.demo-seeding.enabled=true"` from the backend directory. Omit that argument or pass `false` to restore the default on the next startup, and check that no other configuration enables it. Keep MongoDB credentials outside command-line arguments and Git.
+
+When enabled, startup inserts only missing records for Demo Agent 1, Demo Agent 2 and Demo Agent 3 (`agent1@example.com` through `agent3@example.com`) using fixed UUIDs. It never updates/deletes existing agents or seeds tickets. Disabling seeding does not remove previously inserted agents. Do not enable it against the shared Atlas database; real MongoDB verification requires a separately configured and authorized isolated test database.
+
 ### Frontend/backend communication
 
 The Vite development proxy forwards `/api` requests to the Spring Boot backend on port 8080.
