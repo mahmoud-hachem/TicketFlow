@@ -9,7 +9,8 @@ public record IsolatedMongoSettings(String uri, String database) {
             throw new IllegalStateException("Database tests require explicit profile activation and human authorization");
         }
         String database = environment.get("TICKETFLOW_TEST_DATABASE");
-        if (database == null || !database.matches("ticketflow_it_[a-f0-9]{32}")
+        // IT-01: the owner also authorized this exact dedicated database name.
+        if (database == null || !(database.equals("ticketflow_test") || database.matches("ticketflow_it_[a-f0-9]{32}"))
                 || !database.equals(environment.get("TICKETFLOW_TEST_DATABASE_CONFIRMATION"))) {
             throw new IllegalStateException("An explicitly confirmed isolated test database is required");
         }

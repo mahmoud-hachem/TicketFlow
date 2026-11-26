@@ -10,23 +10,30 @@ import static org.junit.jupiter.api.Assertions.*;
 class IsolatedMongoSettingsTest {
     private static final String DB = "ticketflow_it_0123456789abcdef0123456789abcdef";
     private Map<String, String> valid() {
-        return new HashMap<>(Map.of("TICKETFLOW_TEST_DB_AUTHORIZED", "true",
-                "TICKETFLOW_TEST_DATABASE", DB, "TICKETFLOW_TEST_DATABASE_CONFIRMATION", DB,
-                "TICKETFLOW_TEST_MONGODB_URI", "mongodb://127.0.0.1/" + DB + "?w=majority"));
+        return valid(DB);
     }
 
-    @Test
-    void parsesOnlyExplicitlyConfirmedTargetWithoutOpeningAClient() {
-        assertEquals(DB, IsolatedMongoSettings.require(valid(), true).database());
-        assertEquals("IsolatedMongoSettings[redacted]", IsolatedMongoSettings.require(valid(), true).toString());
+    private Map<String, String> valid(String database) {
+        return new HashMap<>(Map.of("TICKETFLOW_TEST_DB_AUTHORIZED", "true",
+                "TICKETFLOW_TEST_DATABASE", database, "TICKETFLOW_TEST_DATABASE_CONFIRMATION", database,
+                "TICKETFLOW_TEST_MONGODB_URI", "mongodb://127.0.0.1/" + database + "?w=majority"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {DB, "ticketflow_test"})
+    void parsesOnlyExplicitlyConfirmedTargetWithoutOpeningAClient(String database) {
+        assertEquals(database, IsolatedMongoSettings.require(valid(database), true).database());
+        assertEquals("IsolatedMongoSettings[redacted]", IsolatedMongoSettings.require(valid(database), true).toString());
     }
 
     @ParameterizedTest
     @ValueSource(strings = {"TICKETFLOW_TEST_DB_AUTHORIZED", "TICKETFLOW_TEST_DATABASE",
             "TICKETFLOW_TEST_DATABASE_CONFIRMATION", "TICKETFLOW_TEST_MONGODB_URI"})
     void missingConfigurationFailsClosed(String key) {
-        Map<String, String> config = valid(); config.remove(key);
-        assertThrows(IllegalStateException.class, () -> IsolatedMongoSettings.require(config, true));
+        for (String database : new String[] {DB, "ticketflow_test"}) {
+            Map<String, String> config = valid(database); config.remove(key);
+            assertThrows(IllegalStateException.class, () -> IsolatedMongoSettings.require(config, true));
+        }
     }
 
     @Test
@@ -41,9 +48,35 @@ class IsolatedMongoSettingsTest {
             "mongodb://127.0.0.1/DB?w=0", "mongodb://127.0.0.1/DB",
             "mongodb://127.0.0.1/DB?w=majority&readPreference=secondary", "SENSITIVE_INVALID_URI"})
     void unsafeUrisAreRejectedWithoutLeakingTheirContents(String uri) {
-        Map<String, String> config = valid(); config.put("TICKETFLOW_TEST_MONGODB_URI", uri.replace("/DB", "/" + DB));
-        var ex = assertThrows(IllegalStateException.class, () -> IsolatedMongoSettings.require(config, true));
-        assertFalse(ex.getMessage().contains(uri)); assertNull(ex.getCause());
+        for (String database : new String[] {DB, "ticketflow_test"}) {
+            Map<String, String> config = valid(database);
+            config.put("TICKETFLOW_TEST_MONGODB_URI", uri.replace("/DB", "/" + database));
+            var ex = assertThrows(IllegalStateException.class, () -> IsolatedMongoSettings.require(config, true));
+            assertFalse(ex.getMessage().contains(uri)); assertNull(ex.getCause());
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"ticketflow_dev", "shared", "ticketflow_test_other", "ticketflow_test ",
+            "TICKETFLOW_TEST", "ticketflow_it_invalid"})
+    void unauthorizedNamesFailEvenWithMatchingConfirmationAndUri(String database) {
+        assertThrows(IllegalStateException.class, () -> IsolatedMongoSettings.require(valid(database), true));
+    }
+
+    @Test
+    void dedicatedDatabaseStillRequiresAuthorizationActivationAndExactConfirmation() {
+        Map<String, String> config = valid("ticketflow_test");
+        assertThrows(IllegalStateException.class, () -> IsolatedMongoSettings.require(config, false));
+        config.put("TICKETFLOW_TEST_DB_AUTHORIZED", "false");
+        assertThrows(IllegalStateException.class, () -> IsolatedMongoSettings.require(config, true));
+        config.put("TICKETFLOW_TEST_DB_AUTHORIZED", "true");
+        config.put("TICKETFLOW_TEST_DATABASE_CONFIRMATION", DB);
+        assertThrows(IllegalStateException.class, () -> IsolatedMongoSettings.require(config, true));
+        config.put("TICKETFLOW_TEST_DATABASE_CONFIRMATION", "ticketflow_test");
+        config.put("TICKETFLOW_TEST_MONGODB_URI", "mongodb://127.0.0.1/" + DB + "?w=majority");
+        assertThrows(IllegalStateException.class, () -> IsolatedMongoSettings.require(config, true));
+        config.put("TICKETFLOW_TEST_MONGODB_URI", "mongodb://127.0.0.1/ticketflow_test?w=majority&readPreference=primary");
+        assertEquals("ticketflow_test", IsolatedMongoSettings.require(config, true).database());
     }
 
     @Test

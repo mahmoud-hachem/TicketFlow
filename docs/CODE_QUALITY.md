@@ -1,6 +1,6 @@
 # Part 6 — Code quality, metrics and refactoring
 
-Measured on 26 November 2026. This work preserves the TIC-10 changes, approved requirements, D1–D25, R1–R4 and I6-01–I6-12. No database-dependent tests, application backend, MongoDB connection, commit or push was executed.
+Measured on 26 November 2026, **before IT-01**. This quality-refactoring record preserves the approved requirements, D1–D25, R1–R4 and I6-01–I6-12. No database-dependent tests, application backend, MongoDB connection, commit or push was executed during that measurement phase. Subsequent IT-01 and human-verified real integration results are recorded in [TIC10_VERIFICATION.md](TIC10_VERIFICATION.md); they do not update the coverage or complexity baseline below.
 
 ## Approved decisions and trade-offs
 
@@ -45,6 +45,8 @@ Before editing production files, frontend metrics and baseline JaCoCo/PMD/CPD XM
 
 ## Before / after measurements
 
+Both columns describe the quality-refactoring measurements **before IT-01**. The final post-refactor baseline is 97.87% Java line coverage and 93.29% branch coverage, with Java complexity 211 → 202 and frontend complexity 316 → 282. No combined integration coverage percentage is claimed.
+
 | Indicator | Before | After |
 |---|---:|---:|
 | JaCoCo Java lines covered / total | 414 / 423 (97.87%) | 413 / 422 (97.87%) |
@@ -87,6 +89,6 @@ Coverage denominators changed because duplicate branches were consolidated; the 
 
 ## Remaining limitations and deferred work
 
-Real persistence, application context startup and competing MongoDB writes remain unverified and explicitly deferred to the guarded TIC-10 database suite. Mocked responses cannot establish real network/database behavior. No new backend tests were needed because existing tests exercise the extracted version and integrity paths; the 303-case suite remains unchanged.
+At the time of these pre-IT-01 measurements, real persistence, application context startup and competing MongoDB writes were deferred. Subsequently, the human verified all 7 real integration tests plus 1 context test passing, zero failures/errors/skips, on 26 November 2026 at 22:39 (35.114 seconds). Codex separately reported 311 isolated cases after IT-01. See [final TIC-10 verification](TIC10_VERIFICATION.md). Mocked responses alone do not establish real network/database behavior. The quality-refactoring phase used the existing 303-case suite unchanged; later guard tests do not retroactively change that measurement.
 
 Advisory metrics are signals, not proof of maintainability or business correctness. Short duplication remains despite zero 100-token CPD groups. App remains large and uses 15 independent state hooks; broader decomposition or a reducer remains deferred under Q4. Narrow logging deliberately limits diagnostic detail to protect sensitive information. Further test-fixture consolidation is deferred to avoid obscuring existing regression assertions. Coverage thresholds, broader static-analysis rules, SpotBugs and a project-managed browser-test dependency require separate human decisions. The external browser tool path is an environment-specific prerequisite, not a portable project dependency.
