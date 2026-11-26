@@ -38,6 +38,14 @@ public class TicketController {
                 ticketService.listTickets());
     }
 
+    @PatchMapping("/{id}/assignment")
+    public ResponseEntity<TicketDetailResponse> assignAgent(
+            @PathVariable String id,
+            @Valid @RequestBody AssignTicketRequest request
+    ) {
+        return ResponseEntity.ok(ticketService.assignAgent(id, request));
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<TicketDetailResponse> getTicketById(
             @PathVariable String id

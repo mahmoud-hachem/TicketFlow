@@ -182,6 +182,31 @@ button:disabled {
   color: #166534;
 }
 
+.assignment-panel {
+  border-top: 1px solid #dbe2ea;
+  margin-top: 20px;
+  padding-top: 20px;
+  min-width: 0;
+}
+
+.assignment-form,
+.assignment-form select {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.assignment-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.assignment-controls button {
+  margin-top: 4px;
+  max-width: 100%;
+  white-space: normal;
+}
+
 @media (max-width: 480px) {
   .header {
     padding: 20px;

@@ -1,5 +1,6 @@
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import TicketAssignment from './TicketAssignment.jsx'
 import './App.css'
 
 const initialForm = {
@@ -21,14 +22,18 @@ function App() {
   const [listError, setListError] = useState('')
   const [refreshKey, setRefreshKey] = useState(0)
 
-  const [selectedId, setSelectedId] = useState(null)
+  const [selection, setSelection] = useState(null)
+  const selectedId = selection?.id ?? null
+  const selectionRef = useRef(null)
+  const listRequestRef = useRef(null)
+  const detailRequestRef = useRef(null)
   const [selectedTicket, setSelectedTicket] = useState(null)
   const [detailLoading, setDetailLoading] = useState(false)
   const [detailError, setDetailError] = useState('')
-  const [detailRefresh, setDetailRefresh] = useState(0)
 
   useEffect(() => {
     const controller = new AbortController()
+    listRequestRef.current = controller
 
     async function loadTickets() {
       setListLoading(true)
@@ -44,7 +49,9 @@ function App() {
         }
 
         const data = await response.json()
-        setTickets(data)
+        if (!controller.signal.aborted) {
+          setTickets(data)
+        }
       } catch (err) {
         if (!controller.signal.aborted) {
           setListError(err.message)
@@ -62,9 +69,11 @@ function App() {
   }, [refreshKey])
 
   useEffect(() => {
-    if (!selectedId) return
+    if (!selection) return
 
     const controller = new AbortController()
+    detailRequestRef.current = controller
+    const isCurrent = () => !controller.signal.aborted && selectionRef.current === selection
 
     async function loadDetails() {
       setDetailLoading(true)
@@ -73,7 +82,7 @@ function App() {
 
       try {
         const response = await fetch(
-          `/api/tickets/${encodeURIComponent(selectedId)}`,
+          `/api/tickets/${encodeURIComponent(selection.id)}`,
           { signal: controller.signal }
         )
 
@@ -86,14 +95,16 @@ function App() {
         }
 
         const data = await response.json()
-        setSelectedTicket(data)
+        if (isCurrent()) {
+          setSelectedTicket(data)
+        }
 
       } catch (err) {
-        if (!controller.signal.aborted) {
+        if (isCurrent()) {
           setDetailError(err.message)
         }
       } finally {
-        if (!controller.signal.aborted) {
+        if (isCurrent()) {
           setDetailLoading(false)
         }
       }
@@ -102,21 +113,51 @@ function App() {
     loadDetails()
 
     return () => controller.abort()
-  }, [selectedId, detailRefresh])
+  }, [selection])
 
   function viewDetails(id) {
+    const nextSelection = { id }
+    selectionRef.current = nextSelection
+    detailRequestRef.current?.abort()
     setSelectedTicket(null)
     setDetailError('')
     setDetailLoading(true)
-    setSelectedId(id)
-    setDetailRefresh(previous => previous + 1)
+    setSelection(nextSelection)
   }
 
   function closeDetails() {
-    setSelectedId(null)
+    selectionRef.current = null
+    detailRequestRef.current?.abort()
+    setSelection(null)
     setSelectedTicket(null)
     setDetailError('')
     setDetailLoading(false)
+  }
+
+  function handleAssigned(updated, sourceSelection) {
+    if (selectionRef.current !== sourceSelection) return
+
+    // A read started before this successful mutation must not restore older data.
+    listRequestRef.current?.abort()
+    detailRequestRef.current?.abort()
+    setSelectedTicket(updated)
+    setDetailLoading(false)
+    setDetailError('')
+    setListLoading(false)
+    setListError('')
+    setTickets(previous => previous.map(ticket => ticket.id === updated.id
+      ? {
+          ...ticket,
+          title: updated.title,
+          requesterName: updated.requesterName,
+          status: updated.status,
+          priority: updated.priority,
+          assignedAgent: updated.assignedAgent,
+          createdAt: updated.createdAt,
+          updatedAt: updated.updatedAt,
+          version: updated.version
+        }
+      : ticket))
   }
 
   function handleChange(event) {
@@ -307,7 +348,7 @@ function App() {
             <p>No tickets yet. Create your first support ticket.</p>
           )}
 
-          {!listLoading && !listError && tickets.map(ticket => (
+          {tickets.map(ticket => (
             <article className="ticket-item" key={ticket.id}>
 
               <h3>{ticket.title}</h3>
@@ -357,6 +398,9 @@ function App() {
                   {detailError && (
                     <div className="error-message" role="alert">
                       {detailError}
+                      <button type="button" onClick={() => viewDetails(selectedId)}>
+                        Reload Ticket
+                      </button>
                     </div>
                   )}
 
@@ -411,6 +455,13 @@ function App() {
                         <strong>Version:</strong>{' '}
                         {selectedTicket.version}
                       </p>
+
+                      <TicketAssignment
+                        key={selectedTicket.id}
+                        ticket={selectedTicket}
+                        onAssigned={updated => handleAssigned(updated, selection)}
+                        onReload={() => viewDetails(selectedId)}
+                      />
 
                       <hr />
 

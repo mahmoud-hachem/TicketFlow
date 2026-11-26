@@ -3,6 +3,8 @@ package com.ticketflow.ticket;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import com.ticketflow.agent.AgentRepository;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -27,6 +29,7 @@ class TicketServiceTest {
 
         service = new TicketService(
                 repository,
+                mock(AgentRepository.class),
                 clock,
                 () -> "test-ticket-id"
         );
@@ -36,8 +39,11 @@ class TicketServiceTest {
     void shouldCreateTicketWithOpenStatus() {
 
         when(repository.save(any(Ticket.class)))
-                .thenAnswer(invocation ->
-                        invocation.getArgument(0));
+                .thenAnswer(invocation -> {
+                    Ticket ticket = invocation.getArgument(0);
+                    ReflectionTestUtils.setField(ticket, "version", 0L);
+                    return ticket;
+                });
 
         CreateTicketRequest request =
                 new CreateTicketRequest(
