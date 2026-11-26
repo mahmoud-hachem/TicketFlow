@@ -91,6 +91,19 @@ public class Ticket {
         this.updatedAt = at;
     }
 
+    public Comment addComment(String commentId, String authorName, String content, Instant at) {
+        if (status == TicketStatus.CLOSED) throw new TicketClosedException();
+        requireUuidString(commentId, "Comment ID");
+        if (at == null) throw new InvalidTicketInputException("Comment timestamp is required");
+        Comment comment = new Comment(commentId, authorName, content, at);
+        if (comments.stream().anyMatch(existing -> existing.id().equals(commentId))) {
+            throw new TicketIntegrityException("Comment ID already exists");
+        }
+        comments.add(comment);
+        updatedAt = at;
+        return comment;
+    }
+
     public void changeStatus(TicketStatus next, Instant at) {
         if (status == TicketStatus.CLOSED) throw new TicketClosedException();
         if (next == null || at == null) {

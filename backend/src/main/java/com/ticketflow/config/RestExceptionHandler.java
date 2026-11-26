@@ -154,6 +154,8 @@ public class RestExceptionHandler {
         return problem(HttpStatus.CONFLICT, "TICKET_CLOSED",
                 request.getRequestURI().endsWith("/status")
                         ? "Closed tickets cannot change status."
+                        : request.getRequestURI().endsWith("/comments")
+                        ? "Closed tickets cannot receive new comments."
                         : "Closed tickets cannot be assigned or reassigned.", request);
     }
 

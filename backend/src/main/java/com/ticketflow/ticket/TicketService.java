@@ -155,6 +155,36 @@ public class TicketService {
         return toDetailResponse(ticketRepository.save(ticket), agents);
     }
 
+    public CommentCreatedResponse addComment(String id, AddCommentRequest request) {
+        Ticket.requireUuidString(id, "Ticket ID");
+        if (request == null || request.expectedVersion() == null || request.expectedVersion() < 0) {
+            throw new InvalidTicketInputException("Comment and nonnegative expected version are required");
+        }
+        Comment.validate(request.authorName(), 100);
+        Comment.validate(request.content(), 2000);
+        Ticket ticket = loadTicket(id);
+        requirePersistedVersion(ticket);
+        if (!ticket.getVersion().equals(request.expectedVersion())) {
+            throw new TicketVersionConflictException();
+        }
+        toDetailResponse(ticket);
+        String commentId = idGenerator.get();
+        try {
+            Ticket.requireUuidString(commentId, "Comment ID");
+        } catch (InvalidTicketInputException ex) {
+            throw new TicketIntegrityException("Comment generator returned an invalid identifier");
+        }
+        Instant at = Instant.now(clock);
+        if (at == null) throw new TicketIntegrityException("Comment clock returned no timestamp");
+        ticket.addComment(commentId, request.authorName(), request.content(), at);
+        Ticket saved = ticketRepository.save(ticket);
+        requireDetailIntegrity(saved);
+        CommentResponse created = commentResponses(saved).stream()
+                .filter(comment -> comment.id().equals(commentId)).findFirst()
+                .orElseThrow(() -> new TicketIntegrityException("Saved comment is missing"));
+        return new CommentCreatedResponse(saved.getId(), created, saved.getVersion(), saved.getUpdatedAt());
+    }
+
     private Ticket loadTicket(String id) {
         return ticketRepository.findById(id)
                 .orElseThrow(TicketNotFoundException::new);

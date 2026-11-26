@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react'
 import TicketAssignment from './TicketAssignment.jsx'
 import TicketStatus from './TicketStatus.jsx'
+import TicketComments from './TicketComments.jsx'
 import './App.css'
 
 const initialForm = {
@@ -30,6 +31,7 @@ function App() {
   const detailRequestRef = useRef(null)
   const workflowRef = useRef({ busy: false, reload: false })
   const [workflow, setWorkflow] = useState({ busy: false, reload: false })
+  const [commentDraft, setCommentDraft] = useState({ ticketId: null, authorName: '', content: '' })
   const [selectedTicket, setSelectedTicket] = useState(null)
   const [detailLoading, setDetailLoading] = useState(false)
   const [detailError, setDetailError] = useState('')
@@ -119,6 +121,8 @@ function App() {
   }, [selection])
 
   function viewDetails(id) {
+    setCommentDraft(previous => previous.ticketId === id
+      ? previous : { ticketId: id, authorName: '', content: '' })
     const nextSelection = { id }
     selectionRef.current = nextSelection
     workflowRef.current = { busy: false, reload: false }
@@ -178,6 +182,15 @@ function App() {
           version: updated.version
         }
       : ticket))
+  }
+
+  function handleCommentCreated(response, sourceSelection) {
+    if (selectionRef.current !== sourceSelection) return
+    const comments = [...selectedTicket.comments.filter(comment => comment.id !== response.comment.id), response.comment]
+      .sort((left, right) => Date.parse(left.createdAt) - Date.parse(right.createdAt) ||
+        (left.id < right.id ? -1 : left.id > right.id ? 1 : 0))
+    handleAssigned({ ...selectedTicket, comments, version: response.ticketVersion,
+      updatedAt: response.updatedAt }, sourceSelection)
   }
 
   function handleChange(event) {
@@ -500,6 +513,19 @@ function App() {
 
                       <h3>Comments</h3>
 
+                      <TicketComments
+                        key={`comments-${selectedTicket.id}`}
+                        ticket={selectedTicket}
+                        workflow={workflow}
+                        draft={commentDraft}
+                        onDraftChange={draft => {
+                          if (selectionRef.current === selection) setCommentDraft({ ticketId: selectedId, ...draft })
+                        }}
+                        onBegin={() => beginMutation(selection)}
+                        onEnd={reload => endMutation(selection, reload)}
+                        onCreated={response => handleCommentCreated(response, selection)}
+                      />
+
                       {!selectedTicket.comments?.length && (
                         <p>No comments yet.</p>
                       )}
@@ -510,7 +536,7 @@ function App() {
                           key={comment.id}
                         >
                           <strong>{comment.authorName}</strong>
-                          <p>{comment.content}</p>
+                          <p style={{ whiteSpace: 'pre-wrap' }}>{comment.content}</p>
                           <small>
                             {new Date(comment.createdAt).toLocaleString()}
                           </small>
