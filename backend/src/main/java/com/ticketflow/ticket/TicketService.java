@@ -133,6 +133,28 @@ public class TicketService {
         return toDetailResponse(saved, Map.of(agent.getId(), toAgentSummary(agent)));
     }
 
+    public TicketDetailResponse changeStatus(String id, ChangeTicketStatusRequest request) {
+        Ticket.requireUuidString(id, "Ticket ID");
+        if (request == null || request.status() == null || request.expectedVersion() == null
+                || request.expectedVersion() < 0) {
+            throw new InvalidTicketInputException("Status and nonnegative expected version are required");
+        }
+        Ticket ticket = loadTicket(id);
+        requirePersistedVersion(ticket);
+        if (!ticket.getVersion().equals(request.expectedVersion())) {
+            throw new TicketVersionConflictException();
+        }
+        // Resolve references and validate response data before any mutation or save.
+        TicketDetailResponse current = toDetailResponse(ticket);
+        Map<String, AgentSummaryResponse> agents = ticket.getAssignedAgentId() == null
+                ? Map.of() : Map.of(ticket.getAssignedAgentId(),
+                        current.assignedAgent());
+        Instant at = Instant.now(clock);
+        if (at == null) throw new TicketIntegrityException("Status clock returned no timestamp");
+        ticket.changeStatus(request.status(), at);
+        return toDetailResponse(ticketRepository.save(ticket), agents);
+    }
+
     private Ticket loadTicket(String id) {
         return ticketRepository.findById(id)
                 .orElseThrow(TicketNotFoundException::new);

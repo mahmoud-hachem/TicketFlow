@@ -91,6 +91,25 @@ public class Ticket {
         this.updatedAt = at;
     }
 
+    public void changeStatus(TicketStatus next, Instant at) {
+        if (status == TicketStatus.CLOSED) throw new TicketClosedException();
+        if (next == null || at == null) {
+            throw new InvalidTicketInputException("Status and timestamp are required");
+        }
+        boolean allowed = switch (status) {
+            case OPEN -> next == TicketStatus.IN_PROGRESS;
+            case IN_PROGRESS -> next == TicketStatus.RESOLVED;
+            case RESOLVED -> next == TicketStatus.CLOSED || next == TicketStatus.IN_PROGRESS;
+            case CLOSED -> false;
+        };
+        if (!allowed) throw new InvalidTransitionException();
+        if (next == TicketStatus.IN_PROGRESS && (assignedAgentId == null || assignedAgentId.isBlank())) {
+            throw new AssigneeRequiredException();
+        }
+        status = next;
+        updatedAt = at;
+    }
+
     static void requireUuidString(String value, String field) {
         boolean valid = false;
         if (value != null) {

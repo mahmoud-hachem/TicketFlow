@@ -1,6 +1,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import TicketAssignment from './TicketAssignment.jsx'
+import TicketStatus from './TicketStatus.jsx'
 import './App.css'
 
 const initialForm = {
@@ -27,6 +28,8 @@ function App() {
   const selectionRef = useRef(null)
   const listRequestRef = useRef(null)
   const detailRequestRef = useRef(null)
+  const workflowRef = useRef({ busy: false, reload: false })
+  const [workflow, setWorkflow] = useState({ busy: false, reload: false })
   const [selectedTicket, setSelectedTicket] = useState(null)
   const [detailLoading, setDetailLoading] = useState(false)
   const [detailError, setDetailError] = useState('')
@@ -118,6 +121,8 @@ function App() {
   function viewDetails(id) {
     const nextSelection = { id }
     selectionRef.current = nextSelection
+    workflowRef.current = { busy: false, reload: false }
+    setWorkflow(workflowRef.current)
     detailRequestRef.current?.abort()
     setSelectedTicket(null)
     setDetailError('')
@@ -127,11 +132,26 @@ function App() {
 
   function closeDetails() {
     selectionRef.current = null
+    workflowRef.current = { busy: false, reload: false }
+    setWorkflow(workflowRef.current)
     detailRequestRef.current?.abort()
     setSelection(null)
     setSelectedTicket(null)
     setDetailError('')
     setDetailLoading(false)
+  }
+
+  function beginMutation(sourceSelection) {
+    if (selectionRef.current !== sourceSelection || workflowRef.current.busy || workflowRef.current.reload) return false
+    workflowRef.current = { ...workflowRef.current, busy: true }
+    setWorkflow(workflowRef.current)
+    return true
+  }
+
+  function endMutation(sourceSelection, reload) {
+    if (selectionRef.current !== sourceSelection) return
+    workflowRef.current = { busy: false, reload: workflowRef.current.reload || reload }
+    setWorkflow(workflowRef.current)
   }
 
   function handleAssigned(updated, sourceSelection) {
@@ -460,6 +480,19 @@ function App() {
                         key={selectedTicket.id}
                         ticket={selectedTicket}
                         onAssigned={updated => handleAssigned(updated, selection)}
+                        onReload={() => viewDetails(selectedId)}
+                        workflow={workflow}
+                        onBegin={() => beginMutation(selection)}
+                        onEnd={reload => endMutation(selection, reload)}
+                      />
+
+                      <TicketStatus
+                        key={`status-${selectedTicket.id}`}
+                        ticket={selectedTicket}
+                        workflow={workflow}
+                        onBegin={() => beginMutation(selection)}
+                        onEnd={reload => endMutation(selection, reload)}
+                        onUpdated={updated => handleAssigned(updated, selection)}
                         onReload={() => viewDetails(selectedId)}
                       />
 

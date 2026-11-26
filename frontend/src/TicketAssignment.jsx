@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 
-function TicketAssignment({ ticket, onAssigned, onReload }) {
+function TicketAssignment({ ticket, onAssigned, onReload, workflow, onBegin, onEnd }) {
   const [agents, setAgents] = useState([])
   const [agentsLoading, setAgentsLoading] = useState(true)
   const [agentsError, setAgentsError] = useState('')
@@ -47,7 +47,7 @@ function TicketAssignment({ ticket, onAssigned, onReload }) {
   const closed = ticket.status === 'CLOSED'
   const validVersion = Number.isSafeInteger(ticket.version) && ticket.version >= 0
   const availableSelection = agents.some(agent => agent.id === agentId)
-  const blocked = closed || submitting || agentsLoading || Boolean(agentsError) ||
+  const blocked = closed || submitting || workflow.busy || workflow.reload || agentsLoading || Boolean(agentsError) ||
     requiresReload || !validVersion
 
   async function assign(event) {
@@ -58,6 +58,8 @@ function TicketAssignment({ ticket, onAssigned, onReload }) {
       return
     }
 
+    if (!onBegin()) return
+    let reloadNeeded = false
     const controller = new AbortController()
     mutationRef.current = controller
     setSubmitting(true)
@@ -84,9 +86,10 @@ function TicketAssignment({ ticket, onAssigned, onReload }) {
           ? Object.fromEntries(Object.entries(fields).filter(([, value]) => typeof value === 'string'))
           : {})
         const conflict = response.status === 409 && data?.errorCode === 'VERSION_CONFLICT'
-        setRequiresReload(conflict || response.status >= 500 ||
+        reloadNeeded = conflict || response.status >= 500 ||
           data?.errorCode === 'TICKET_CLOSED' || data?.errorCode === 'TICKET_NOT_FOUND' ||
-          Boolean(fields?.expectedVersion))
+          Boolean(fields?.expectedVersion)
+        setRequiresReload(reloadNeeded)
         setError(conflict
           ? 'This ticket changed. Reload the ticket, review the latest assignment, then submit again.'
           : typeof data?.detail === 'string' ? data.detail : 'Unable to update the assignment.')
@@ -103,12 +106,14 @@ function TicketAssignment({ ticket, onAssigned, onReload }) {
     } catch {
       if (!controller.signal.aborted && mutationRef.current === controller) {
         setRequiresReload(true)
+        reloadNeeded = true
         setError('The assignment outcome could not be confirmed. Reload this ticket before trying again.')
       }
     } finally {
       if (mutationRef.current === controller) {
         mutationRef.current = null
         if (!controller.signal.aborted) setSubmitting(false)
+        onEnd(reloadNeeded)
       }
     }
   }
@@ -157,7 +162,7 @@ function TicketAssignment({ ticket, onAssigned, onReload }) {
             onClick={() => setAgentsRefresh(previous => previous + 1)}>
             Reload Agents
           </button>
-          {(requiresReload || !validVersion) && (
+          {(requiresReload || workflow.reload || !validVersion) && (
             <button type="button" disabled={submitting} onClick={onReload}>Reload Ticket</button>
           )}
         </div>
